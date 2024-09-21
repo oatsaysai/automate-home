@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"time"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
@@ -64,14 +65,17 @@ func playSceneHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cmd := exec.Command("./automate-home")
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "CMD=playScene")
-	cmd.Env = append(cmd.Env, fmt.Sprintf("SCENE=%d", params.Scene))
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println(err)
-	}
+	go func() {
+		cmd := exec.Command("./automate-home")
+		cmd.Env = os.Environ()
+		cmd.Env = append(cmd.Env, "CMD=playScene")
+		cmd.Env = append(cmd.Env, fmt.Sprintf("SCENE=%d", params.Scene))
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}()
+	time.Sleep(1 * time.Second)
 
 	fmt.Fprintf(w, "Play scene: %+v\n", params.Scene)
 }
@@ -88,9 +92,7 @@ func playScene(scene int64) {
 	ctx, cancel = chromedp.NewContext(ctx)
 	defer cancel()
 
-	// url := "http://192.168.1.6"
 	url := ""
-
 	username := ""
 	password := ""
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
@@ -105,17 +107,18 @@ func playScene(scene int64) {
 			},
 		),
 		chromedp.WaitVisible(".main"),
+		chromedp.Sleep(500*time.Millisecond),
 		chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result),
 	)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
 }
 
 // setHeadersAndNavigate returns a task list that sets the passed headers.
 func setHeadersAndNavigate(host string, headers map[string]interface{}) chromedp.Tasks {
 	return chromedp.Tasks{
-		network.Enable(),
+		// network.Enable(),
 		network.SetExtraHTTPHeaders(network.Headers(headers)),
 		chromedp.Navigate(host),
 	}
