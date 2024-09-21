@@ -8,35 +8,24 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
-	"strconv"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 )
 
+var ch = make(chan int64)
+
 func main() {
 
-	// Get ENV
-	cmdVal := os.Getenv("CMD")
-	sceneVal := os.Getenv("SCENE")
+	go openWebPage(ch)
 
-	if cmdVal == "serve" {
-		http.HandleFunc("/play-scene", playSceneHandler)
+	http.HandleFunc("/play-scene", playSceneHandler)
 
-		fmt.Println("Server started at http://localhost:8080")
-		err := http.ListenAndServe(":8080", nil)
-		if err != nil {
-			fmt.Println("Error starting server:", err)
-		}
-	} else if cmdVal == "playScene" {
-		i, err := strconv.ParseInt(sceneVal, 10, 64)
-		if err != nil {
-			panic(err)
-		}
-
-		playScene(i)
+	fmt.Println("Server started at http://localhost:8080")
+	err := http.ListenAndServe(":8080", nil)
+	if err != nil {
+		fmt.Println("Error starting server:", err)
 	}
 }
 
@@ -44,14 +33,7 @@ type PlaySceneParams struct {
 	Scene int64 `json:"scene"`
 }
 
-func errorHandler() {
-	if r := recover(); r != nil {
-		log.Printf("Recovered from panic: %v", r)
-	}
-}
-
 func playSceneHandler(w http.ResponseWriter, r *http.Request) {
-	defer errorHandler()
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
@@ -65,22 +47,12 @@ func playSceneHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go func() {
-		cmd := exec.Command("./automate-home")
-		cmd.Env = os.Environ()
-		cmd.Env = append(cmd.Env, "CMD=playScene")
-		cmd.Env = append(cmd.Env, fmt.Sprintf("SCENE=%d", params.Scene))
-		err = cmd.Run()
-		if err != nil {
-			fmt.Println(err)
-		}
-	}()
-	time.Sleep(1 * time.Second)
+	ch <- params.Scene
 
 	fmt.Fprintf(w, "Play scene: %+v\n", params.Scene)
 }
 
-func playScene(scene int64) {
+func openWebPage(ch chan int64) {
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.Flag("headless", true),
@@ -92,9 +64,9 @@ func playScene(scene int64) {
 	ctx, cancel = chromedp.NewContext(ctx)
 	defer cancel()
 
-	url := ""
-	username := ""
-	password := ""
+	url := os.Getenv("HOST")
+	username := os.Getenv("USER")
+	password := os.Getenv("PASS")
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 
 	var result string
@@ -108,17 +80,22 @@ func playScene(scene int64) {
 		),
 		chromedp.WaitVisible(".main"),
 		chromedp.Sleep(500*time.Millisecond),
-		chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			for {
+				scene := <-ch
+				chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctx)
+			}
+		}),
 	)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatalln(err)
 	}
 }
 
 // setHeadersAndNavigate returns a task list that sets the passed headers.
 func setHeadersAndNavigate(host string, headers map[string]interface{}) chromedp.Tasks {
 	return chromedp.Tasks{
-		// network.Enable(),
+		network.Enable(),
 		network.SetExtraHTTPHeaders(network.Headers(headers)),
 		chromedp.Navigate(host),
 	}

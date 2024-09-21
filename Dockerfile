@@ -11,11 +11,10 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Copy the source code into the container
-COPY . .
+COPY main.go .
 
 # Build the Go application
 RUN CGO_ENABLED=0 GOOS=linux go build -o automate-home .
-
 
 FROM chromedp/headless-shell:131.0.6724.0 AS final
 
