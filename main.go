@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
@@ -83,7 +84,12 @@ func openWebPage(ch chan int64) {
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			for {
 				scene := <-ch
-				chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctx)
+				err := chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctx)
+				if err != nil {
+					if !strings.Contains(err.Error(), "encountered an undefined value") {
+						log.Fatalln(err)
+					}
+				}
 			}
 		}),
 	)
