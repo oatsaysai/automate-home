@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -25,6 +27,7 @@ func main() {
 			if err != nil {
 				log.Printf("err: %v\n", err)
 			}
+			time.Sleep(1000 * time.Millisecond)
 		}
 	}()
 
@@ -62,6 +65,8 @@ func playSceneHandler(w http.ResponseWriter, r *http.Request) {
 
 func openWebPage(ch chan int64) error {
 
+	log.Println("Begin open web page")
+
 	// create ctx
 	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
@@ -83,16 +88,26 @@ func openWebPage(ch chan int64) error {
 		chromedp.WaitVisible(".main"),
 		chromedp.Sleep(500*time.Millisecond),
 		chromedp.ActionFunc(func(ctx context.Context) error {
+
+			log.Println("Open web page completed")
+
 			for {
-				scene := <-ch
+				select {
+				case scene := <-ch:
+					// create a timeout
+					ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
 
-				// create a timeout
-				ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-				defer cancel()
-
-				err := chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctxWithTimeout)
-				if err != nil {
-					if !strings.Contains(err.Error(), "encountered an undefined value") {
+					err := chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctxWithTimeout)
+					if err != nil {
+						if !strings.Contains(err.Error(), "encountered an undefined value") {
+							return err
+						}
+					}
+				default:
+					time.Sleep(500 * time.Millisecond)
+					err := callNetworkCGI()
+					if err != nil {
 						return err
 					}
 				}
@@ -113,4 +128,37 @@ func setHeadersAndNavigate(host string, headers map[string]interface{}) chromedp
 		network.SetExtraHTTPHeaders(network.Headers(headers)),
 		chromedp.Navigate(host),
 	}
+}
+
+func callNetworkCGI() error {
+
+	apiURL := os.Getenv("HOST")
+	resource := "/network.cgi"
+
+	data := url.Values{}
+	data.Set("jsongetevent", "30")
+
+	u, _ := url.ParseRequestURI(apiURL)
+	u.Path = resource
+	urlStr := u.String()
+
+	client := &http.Client{}
+	r, _ := http.NewRequest(http.MethodPost, urlStr, strings.NewReader(data.Encode()))
+
+	username := os.Getenv("USER")
+	password := os.Getenv("PASS")
+	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+
+	r.Header.Add("Authorization", authHeader)
+	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := client.Do(r)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errors.New("http code not 200")
+	}
+
+	return nil
 }
