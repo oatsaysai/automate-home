@@ -23,17 +23,17 @@ func main() {
 		for {
 			err := openWebPage(ch)
 			if err != nil {
-				log.Printf("err: %v", err)
+				log.Printf("err: %v\n", err)
 			}
 		}
 	}()
 
 	http.HandleFunc("/play-scene", playSceneHandler)
 
-	fmt.Println("Server started at http://localhost:8080")
+	log.Println("Server started at http://localhost:8080")
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
-		fmt.Println("Error starting server:", err)
+		log.Fatalln("Error starting server:", err)
 	}
 }
 
@@ -62,19 +62,8 @@ func playSceneHandler(w http.ResponseWriter, r *http.Request) {
 
 func openWebPage(ch chan int64) error {
 
-	// opts := append(chromedp.DefaultExecAllocatorOptions[:],
-	// 	chromedp.Flag("headless", true),
-	// )
-
-	// ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	// defer cancel()
-
 	// create ctx
 	ctx, cancel := chromedp.NewContext(context.Background())
-	defer cancel()
-
-	// create a timeout
-	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	url := os.Getenv("HOST")
@@ -96,10 +85,14 @@ func openWebPage(ch chan int64) error {
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			for {
 				scene := <-ch
-				err := chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctx)
+
+				// create a timeout
+				ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+
+				err := chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctxWithTimeout)
 				if err != nil {
 					if !strings.Contains(err.Error(), "encountered an undefined value") {
-						// log.Fatalln(err)
 						return err
 					}
 				}
@@ -107,7 +100,6 @@ func openWebPage(ch chan int64) error {
 		}),
 	)
 	if err != nil {
-		// log.Fatalln(err)
 		return err
 	}
 
