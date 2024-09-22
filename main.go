@@ -19,7 +19,14 @@ var ch = make(chan int64)
 
 func main() {
 
-	go openWebPage(ch)
+	go func() {
+		for {
+			err := openWebPage(ch)
+			if err != nil {
+				log.Printf("err: %v", err)
+			}
+		}
+	}()
 
 	http.HandleFunc("/play-scene", playSceneHandler)
 
@@ -53,16 +60,21 @@ func playSceneHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Play scene: %+v\n", params.Scene)
 }
 
-func openWebPage(ch chan int64) {
+func openWebPage(ch chan int64) error {
 
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", true),
-	)
+	// opts := append(chromedp.DefaultExecAllocatorOptions[:],
+	// 	chromedp.Flag("headless", true),
+	// )
 
-	ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	// ctx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	// defer cancel()
+
+	// create ctx
+	ctx, cancel := chromedp.NewContext(context.Background())
 	defer cancel()
 
-	ctx, cancel = chromedp.NewContext(ctx)
+	// create a timeout
+	ctx, cancel = context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
 	url := os.Getenv("HOST")
@@ -87,15 +99,19 @@ func openWebPage(ch chan int64) {
 				err := chromedp.Evaluate(fmt.Sprintf(`PlayScene(%d);`, scene), &result).Do(ctx)
 				if err != nil {
 					if !strings.Contains(err.Error(), "encountered an undefined value") {
-						log.Fatalln(err)
+						// log.Fatalln(err)
+						return err
 					}
 				}
 			}
 		}),
 	)
 	if err != nil {
-		log.Fatalln(err)
+		// log.Fatalln(err)
+		return err
 	}
+
+	return nil
 }
 
 // setHeadersAndNavigate returns a task list that sets the passed headers.
