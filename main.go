@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/chromedp/cdproto/network"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -27,7 +27,7 @@ func main() {
 			if err != nil {
 				log.Printf("err: %v\n", err)
 			}
-			time.Sleep(1000 * time.Millisecond)
+			time.Sleep(3000 * time.Millisecond)
 		}
 	}()
 
@@ -60,6 +60,7 @@ func playSceneHandler(w http.ResponseWriter, r *http.Request) {
 
 	ch <- params.Scene
 
+	log.Printf("Play scene: %+v\n", params.Scene)
 	fmt.Fprintf(w, "Play scene: %+v\n", params.Scene)
 }
 
@@ -76,6 +77,37 @@ func openWebPage(ch chan int64) error {
 	password := os.Getenv("PASS")
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 
+	js := fmt.Sprintf(
+		`
+		var details = {
+			'jsongetevent': '173'
+		};
+
+		var formBody = [];
+		for (var property in details) {
+		var encodedKey = encodeURIComponent(property);
+		var encodedValue = encodeURIComponent(details[property]);
+		formBody.push(encodedKey + "=" + encodedValue);
+		}
+		formBody = formBody.join("&");
+
+		(async function() {
+			const response = await fetch('%s', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+					'Authorization': '%s'
+				},
+				body: formBody
+			});
+			const data = await response.text();
+			return data;
+		})()
+		`,
+		url+"/network.cgi",
+		authHeader,
+	)
+
 	var result string
 	err := chromedp.Run(
 		ctx,
@@ -91,6 +123,27 @@ func openWebPage(ch chan int64) error {
 
 			log.Println("Open web page completed")
 
+			chForBreak := make(chan error)
+
+			go func() {
+				for {
+					// create a timeout
+					time.Sleep(5000 * time.Millisecond)
+
+					ctxWithTimeout, _ := context.WithTimeout(ctx, 5*time.Second)
+
+					err := chromedp.Evaluate(js, &result, func(ep *runtime.EvaluateParams) *runtime.EvaluateParams {
+						return ep.WithAwaitPromise(true)
+					}).Do(ctxWithTimeout)
+					if err != nil {
+						chForBreak <- err
+					}
+					if !strings.Contains(result, "jsongetevent done") {
+						chForBreak <- errors.New("got error from gateway")
+					}
+				}
+			}()
+
 			for {
 				select {
 				case scene := <-ch:
@@ -104,12 +157,8 @@ func openWebPage(ch chan int64) error {
 							return err
 						}
 					}
-				default:
-					time.Sleep(500 * time.Millisecond)
-					err := callNetworkCGI()
-					if err != nil {
-						return err
-					}
+				case err := <-chForBreak:
+					return err
 				}
 			}
 		}),
@@ -128,37 +177,4 @@ func setHeadersAndNavigate(host string, headers map[string]interface{}) chromedp
 		network.SetExtraHTTPHeaders(network.Headers(headers)),
 		chromedp.Navigate(host),
 	}
-}
-
-func callNetworkCGI() error {
-
-	apiURL := os.Getenv("HOST")
-	resource := "/network.cgi"
-
-	data := url.Values{}
-	data.Set("jsongetevent", "30")
-
-	u, _ := url.ParseRequestURI(apiURL)
-	u.Path = resource
-	urlStr := u.String()
-
-	client := &http.Client{}
-	r, _ := http.NewRequest(http.MethodPost, urlStr, strings.NewReader(data.Encode()))
-
-	username := os.Getenv("USER")
-	password := os.Getenv("PASS")
-	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
-
-	r.Header.Add("Authorization", authHeader)
-	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := client.Do(r)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return errors.New("http code not 200")
-	}
-
-	return nil
 }
