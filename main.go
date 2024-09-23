@@ -127,10 +127,10 @@ func openWebPage(ch chan int64) error {
 
 			go func() {
 				for {
-					// create a timeout
 					time.Sleep(5000 * time.Millisecond)
 
-					ctxWithTimeout, _ := context.WithTimeout(ctx, 5*time.Second)
+					// Create a timeout
+					ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 
 					err := chromedp.Evaluate(js, &result, func(ep *runtime.EvaluateParams) *runtime.EvaluateParams {
 						return ep.WithAwaitPromise(true)
@@ -141,13 +141,16 @@ func openWebPage(ch chan int64) error {
 					if !strings.Contains(result, "jsongetevent done") {
 						chForBreak <- errors.New("got error from gateway")
 					}
+
+					// Explicitly cancel the context to release resources
+					cancel()
 				}
 			}()
 
 			for {
 				select {
 				case scene := <-ch:
-					// create a timeout
+					// Create a timeout
 					ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 					defer cancel()
 
