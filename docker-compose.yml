@@ -1,0 +1,17 @@
+services:
+  app:
+    image: image-registry.fintblock.com/automate-home
+    ports: ["8090:8080"]
+    container_name: automate-home
+    restart: unless-stopped
+    volumes:
+      - ./.env:/.env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+  restarter:
+    image: docker:cli
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    command: ["/bin/sh", "-c", "while true; do sleep 86400; docker restart automate-home; done"]
+    restart: unless-stopped

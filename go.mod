@@ -1,10 +1,11 @@
 module automate-home
 
-go 1.19
+go 1.24.3
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20240801214329-3f85d328b335
 	github.com/chromedp/chromedp v0.10.0
+	github.com/joho/godotenv v1.5.1
 )
 
 require (

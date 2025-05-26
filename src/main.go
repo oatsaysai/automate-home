@@ -15,9 +15,18 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	"github.com/joho/godotenv"
 )
 
 var ch = make(chan int64)
+
+func init() {
+	// Load .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+}
 
 func main() {
 
@@ -59,6 +68,7 @@ func playSceneHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ch <- params.Scene
+	callToTuyaAPI(params.Scene)
 
 	log.Printf("Play scene: %+v\n", params.Scene)
 	fmt.Fprintf(w, "Play scene: %+v\n", params.Scene)
@@ -73,8 +83,9 @@ func openWebPage(ch chan int64) error {
 	defer cancel()
 
 	url := os.Getenv("HOST")
-	username := os.Getenv("USER")
+	username := os.Getenv("USERNAME")
 	password := os.Getenv("PASS")
+
 	authHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 
 	js := fmt.Sprintf(
@@ -179,5 +190,94 @@ func setHeadersAndNavigate(host string, headers map[string]interface{}) chromedp
 		network.Enable(),
 		network.SetExtraHTTPHeaders(network.Headers(headers)),
 		chromedp.Navigate(host),
+	}
+}
+
+func callToTuyaAPI(scene int64) {
+
+	// Create client and request to Tuya API
+	accessID := os.Getenv("ACCESS_ID")
+	accessKey := os.Getenv("ACCESS_KEY")
+	baseURL := "https://openapi.tuyaus.com" // or https://openapi.tuyacn.com for China
+
+	deviceID1 := os.Getenv("DEVICE_ID_1")
+	deviceID2 := os.Getenv("DEVICE_ID_2")
+
+	// Create Tuya client
+	client := NewTuyaClient(accessID, accessKey, baseURL)
+
+	// Get access token
+	_, err := client.GetAccessToken()
+	if err != nil {
+		log.Fatalf("Failed to get access token: %v", err)
+	}
+
+	switch scene {
+	case 1:
+		commands := []DeviceCommand{
+			{
+				Code:  "control",
+				Value: "close", // open, close, stop
+			},
+		}
+		// Close 2 curtains with go routine
+		go func() {
+			_, err := client.SendDeviceCommand(deviceID1, commands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 1: %v", err)
+			}
+			log.Println("Commands sent for device 1")
+		}()
+		go func() {
+			_, err := client.SendDeviceCommand(deviceID2, commands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 2: %v", err)
+			}
+			log.Println("Commands sent for device 2")
+		}()
+	case 3:
+		commands := []DeviceCommand{
+			{
+				Code:  "control",
+				Value: "open", // open, close, stop
+			},
+		}
+		// Close 2 curtains with go routine
+		go func() {
+			_, err := client.SendDeviceCommand(deviceID1, commands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 1: %v", err)
+			}
+			log.Println("Commands sent for device 1")
+		}()
+		go func() {
+			_, err := client.SendDeviceCommand(deviceID2, commands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 2: %v", err)
+			}
+			log.Println("Commands sent for device 2")
+		}()
+	case 5:
+		commands := []DeviceCommand{
+			{
+				Code:  "control",
+				Value: "close", // open, close, stop
+			},
+		}
+		// Close 2 curtains with go routine
+		go func() {
+			_, err := client.SendDeviceCommand(deviceID1, commands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 1: %v", err)
+			}
+			log.Println("Commands sent for device 1")
+		}()
+		go func() {
+			_, err := client.SendDeviceCommand(deviceID2, commands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 2: %v", err)
+			}
+			log.Println("Commands sent for device 2")
+		}()
 	}
 }
