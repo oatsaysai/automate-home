@@ -90,8 +90,8 @@ curl -X POST http://localhost:8090/play-scene \
 **Available Scenes:**
 
 - `Scene 1`: Close all curtains
-- `Scene 3`: Open all curtains  
-- `Scene 5`: Close all curtains (alternative)
+- `Scene 2`: Open all curtains  
+- `Scene 3`: Close all curtains (alternative)
 
 ### Response Format
 

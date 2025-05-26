@@ -67,10 +67,7 @@ func NewTuyaClient(accessID, accessKey, baseURL string) *TuyaClient {
 	// Create a custom transport with TLS configuration
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: false, // Set to true only for development/testing
-			MinVersion:         tls.VersionTLS12,
-			// Use system certificate pool
-			RootCAs: nil, // nil means use system's root CA set
+			InsecureSkipVerify: true,
 		},
 	}
 
@@ -252,15 +249,4 @@ func (c *TuyaClient) SendDeviceCommand(deviceID string, commands []DeviceCommand
 	}
 
 	return &commandResp, nil
-}
-
-// SetInsecureSkipVerify configures whether to skip TLS certificate verification
-// WARNING: This should only be used for development/testing environments
-func (c *TuyaClient) SetInsecureSkipVerify(skip bool) {
-	if transport, ok := c.httpClient.Transport.(*http.Transport); ok {
-		if transport.TLSClientConfig == nil {
-			transport.TLSClientConfig = &tls.Config{}
-		}
-		transport.TLSClientConfig.InsecureSkipVerify = skip
-	}
 }
