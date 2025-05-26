@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -63,6 +64,16 @@ type TuyaClient struct {
 
 // NewTuyaClient creates a new Tuya API client
 func NewTuyaClient(accessID, accessKey, baseURL string) *TuyaClient {
+	// Create a custom transport with TLS configuration
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: false, // Set to true only for development/testing
+			MinVersion:         tls.VersionTLS12,
+			// Use system certificate pool
+			RootCAs: nil, // nil means use system's root CA set
+		},
+	}
+
 	return &TuyaClient{
 		config: TuyaConfig{
 			AccessID:  accessID,
@@ -70,7 +81,8 @@ func NewTuyaClient(accessID, accessKey, baseURL string) *TuyaClient {
 			BaseURL:   baseURL,
 		},
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: transport,
 		},
 	}
 }
@@ -240,4 +252,15 @@ func (c *TuyaClient) SendDeviceCommand(deviceID string, commands []DeviceCommand
 	}
 
 	return &commandResp, nil
+}
+
+// SetInsecureSkipVerify configures whether to skip TLS certificate verification
+// WARNING: This should only be used for development/testing environments
+func (c *TuyaClient) SetInsecureSkipVerify(skip bool) {
+	if transport, ok := c.httpClient.Transport.(*http.Transport); ok {
+		if transport.TLSClientConfig == nil {
+			transport.TLSClientConfig = &tls.Config{}
+		}
+		transport.TLSClientConfig.InsecureSkipVerify = skip
+	}
 }

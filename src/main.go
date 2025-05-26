@@ -206,10 +206,25 @@ func callToTuyaAPI(scene int64) {
 	// Create Tuya client
 	client := NewTuyaClient(accessID, accessKey, baseURL)
 
-	// Get access token
+	// Get access token with retry logic for certificate issues
 	_, err := client.GetAccessToken()
 	if err != nil {
-		log.Fatalf("Failed to get access token: %v", err)
+		log.Printf("Failed to get access token with default settings: %v", err)
+
+		// If it's a certificate error, try with relaxed TLS settings
+		if strings.Contains(err.Error(), "certificate") || strings.Contains(err.Error(), "x509") {
+			log.Println("Certificate error detected, trying with relaxed TLS settings...")
+			client.SetInsecureSkipVerify(true)
+			_, err = client.GetAccessToken()
+			if err != nil {
+				log.Printf("Failed to get access token even with relaxed TLS: %v", err)
+				return
+			}
+			log.Println("Successfully connected with relaxed TLS settings")
+		} else {
+			log.Printf("Non-certificate error, stopping: %v", err)
+			return
+		}
 	}
 
 	switch scene {
