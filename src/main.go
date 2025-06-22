@@ -310,7 +310,7 @@ func callToTuyaAPI(scene int64) {
 			}
 			log.Println("Commands sent for device 3")
 		}()
-	case 6:
+	case 5:
 		// Turn off 3rd light
 		go func() {
 			turnOffCommands := []DeviceCommand{
