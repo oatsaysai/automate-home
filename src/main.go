@@ -202,6 +202,7 @@ func callToTuyaAPI(scene int64) {
 
 	deviceID1 := os.Getenv("DEVICE_ID_1")
 	deviceID2 := os.Getenv("DEVICE_ID_2")
+	deviceID3 := os.Getenv("DEVICE_ID_3")
 
 	// Create Tuya client
 	client := NewTuyaClient(accessID, accessKey, baseURL)
@@ -235,6 +236,21 @@ func callToTuyaAPI(scene int64) {
 			}
 			log.Println("Commands sent for device 2")
 		}()
+
+		// Turn off 3rd light
+		go func() {
+			turnOffCommands := []DeviceCommand{
+				{
+					Code:  "switch_1",
+					Value: false, // false to turn off
+				},
+			}
+			_, err := client.SendDeviceCommand(deviceID3, turnOffCommands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 2: %v", err)
+			}
+			log.Println("Commands sent for device 3")
+		}()
 	case 2:
 		commands := []DeviceCommand{
 			{
@@ -242,7 +258,7 @@ func callToTuyaAPI(scene int64) {
 				Value: "open", // open, close, stop
 			},
 		}
-		// Close 2 curtains with go routine
+		// Open 2 curtains with go routine
 		go func() {
 			_, err := client.SendDeviceCommand(deviceID1, commands)
 			if err != nil {
@@ -278,6 +294,36 @@ func callToTuyaAPI(scene int64) {
 				log.Printf("Failed to send commands for device 2: %v", err)
 			}
 			log.Println("Commands sent for device 2")
+		}()
+	case 4:
+		// Turn off 3rd light
+		go func() {
+			turnOffCommands := []DeviceCommand{
+				{
+					Code:  "switch_1",
+					Value: true, // true to turn on
+				},
+			}
+			_, err := client.SendDeviceCommand(deviceID3, turnOffCommands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 2: %v", err)
+			}
+			log.Println("Commands sent for device 3")
+		}()
+	case 6:
+		// Turn off 3rd light
+		go func() {
+			turnOffCommands := []DeviceCommand{
+				{
+					Code:  "switch_1",
+					Value: false, // false to turn off
+				},
+			}
+			_, err := client.SendDeviceCommand(deviceID3, turnOffCommands)
+			if err != nil {
+				log.Printf("Failed to send commands for device 2: %v", err)
+			}
+			log.Println("Commands sent for device 3")
 		}()
 	}
 }
